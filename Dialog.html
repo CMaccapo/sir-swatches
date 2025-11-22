@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      #swatchContainer {
+        flex: 0 0 auto; /* fixed height */
+      }
+      #colorEditor {
+        margin-top: 10px;
+      }
+      .swatch-grid {
+        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(9, 24px);
+        grid-template-rows: repeat(5, 16px);
+        gap: 0;
+      }
+      .swatch {
+        width: 24px;
+        height: 16px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .selected-row {
+        border-top: 1px solid white;
+        box-shadow: inset 0 -2px 0 0 white;
+      }
+
+      .selected-col {
+        border-left: 1px solid white;
+        box-shadow: inset -2px 0 0 0 white;
+      }
+      
+      canvas {
+        width: 52px; //%13
+        height: 48px; //%12
+        image-rendering: pixelated;
+      }
+      @keyframes floatUpDown {
+        0%, 100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-4px);
+        }
+      }
+      #sirSwatchesCanvas {
+        animation: floatUpDown 2s ease-in-out infinite;
+      }
+      #sirSwatchesCanvas:hover {
+        animation-play-state: paused;
+      }
+      body {
+        font-size: 12px;
+        padding-top: 0px;
+        padding-btm: 0px;
+        background: rgba(255, 255, 255, 0.6);
+      }
+      button {
+        cursor:pointer;
+      }
+      .btn-select {
+        width: 30px;
+        height: 25px;
+        padding: 2px;
+      }
+      .btn-submit {
+        width: auto;
+        height: 25px;
+        float: right;
+      }
+      .split-button {
+        display: inline-flex;
+        border: 1px solid black;
+        border-radius: 8px;
+        overflow: hidden;
+        width: 50px;
+      }
+      .split-button button {
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .split-button button:first-child {
+        border-right: 1px solid black;
+      }
+      .mini-btn {
+        width:20px; 
+        height:20px; 
+        background-color: transparent; 
+        padding:0px; 
+        border: none; 
+        align-self: flex-start; 
+        font-size: 16px;
+        font-weight: bold;
+      }
+      .btn-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 4px; /* space between the two stacked buttons */
+      }
+      input {
+        width: 94px;
+        height: 10px;
+        padding: 6px;
+      }
+      .input-with-triangle {
+        display: inline-block;
+        position: relative;
+      }
+
+      .triangle {
+        position: relative;
+        left: -38px;
+        width: 0;
+        height: 0;
+        border-left: 16px solid transparent;
+        border-right: 16px solid transparent;
+        border-top: 6px solid black;
+        margin: 0 auto;
+      }
+      .row{
+        display: flex;
+        gap: 8px; 
+        align-items: center; 
+        margin-bottom: 2px;
+      }
+      .hidden { 
+        display: none; 
+      }
+      .jscolor {
+        width: 60px;
+      }
+
+
+    </style>
+  </head>
+  <body>
+    <script src="https://jscolor.com/release/2.4.6/jscolor.js"></script>
+
+    <div id="swatchContainer">
+      <div class="row">
+        <input id="colorEditor" class="jscolor" style="opacity: 0.5; pointer-events: none;  margin-top: 0px;" />
+        <canvas id="sirSwatchesCanvas" width="13" height="12"></canvas>
+        <div class="btn-stack">
+          <button onclick="randomizePixelColors()" class="mini-btn">🎲</button>
+          <button onclick="drawPixelMap(pixelMap, 2)" class="mini-btn">↻</button>
+        </div>
+      </div>
+      <div class="swatch-grid" id="swatchGrid"></div>
+      <button>🗑️</button>
+    </div>
+
+    <hr>
+    <div class="row">
+      <div class="input-with-triangle">
+        <input class="jscolor" id="colorInput" title="Highlight Color to Change">
+        <input class="hidden" id="textInput" type="text" value="text" title="Text to Highlight (Match Case)">
+        <div class="triangle"></div>
+      </div>
+
+      <div class="split-button">
+        <button class="btn-select" id="inputHighlightPickerBtn" onclick="pickColor(this)" title="Send to Color Input" ></button>
+        <button class="btn-select" id="inputColorPickerBtn" onclick="pickColor(this)" title="Send to Color Input" ></button>
+      </div>
+      <button class="btn-select" onclick="showTextBox()" title="Switch to Text">𝐓</button>
+    </div>
+
+    <div class="row" style="grid-row: 2">
+      <input class="jscolor" id="colorOutput"  data-jscolor="{onInput:onColorChange(this)}" title="Highlight With">
+      <div class="split-button">
+        <button class="btn-select" id="outputHighlightPickerBtn" onclick="pickColor(this)" title="Send to Color Output"></button>
+        <button class="btn-select" id="outputColorPickerBtn" onclick="pickColor(this)" title="Send to Color Output"></button>
+      </div>
+    </div>
+    
+    <hr>
+    <div class="row" style="justify-content: center">
+      <button class="btn-submit" id="highlightBtn" onclick="highlight(this)" onmouseover="addBtnColor(this)" onmouseout="removeBtnColor(this)">✨Highlight✨</button>
+      <button class="btn-submit" id="colorizeBtn" onclick="colorize(this)" onmouseover="addBtnColor(this)" onmouseout="removeBtnColor(this)" >✒️Colorize✒️</button>
+    </div>
+   
+    <script>
+      //START highlight and colorize btns preview
+      function addBtnColor(thisBtn) {
+        const color = document.getElementById("colorOutput").value;
+        
+        if (thisBtn.id == "highlightBtn") {
+          thisBtn.style.backgroundColor = color;
+        }
+        if (thisBtn.id == "colorizeBtn") {
+          thisBtn.style.color = color;
+          thisBtn.style.backgroundColor = window.getComputedStyle(document.body).backgroundColor;
+          thisBtn.style.fontWeight = 'bold';
+        }
+      }
+      function removeBtnColor(thisBtn){
+        thisBtn.style.backgroundColor = '';
+        thisBtn.style.color = 'black';
+        thisBtn.style.fontWeight = 'normal';
+      }
+      //END hightlight and colorize btns preview
+
+      //startSwatches
+      const hues = [0, 30, 60, 120, 180, 210, 270, 300, 330]; // 9 columns
+      const lightnessSteps = [90, 70, 50, 35, 20];            // 5 rows
+
+      const swatchElements = [];
+      let selectedRow = null;
+      let selectedCol = null;
+
+      const swatchGrid = document.getElementById("swatchGrid");
+      const colorEditor = document.getElementById("colorEditor");
+
+      for (let row = 0; row < lightnessSteps.length; row++) {
+        for (let col = 0; col < hues.length; col++) {
+          const hsl = `hsl(${hues[col]}, 100%, ${lightnessSteps[row]}%)`;
+          const swatch = document.createElement("div");
+          swatch.className = "swatch";
+          swatch.style.backgroundColor = hsl;
+          swatch.dataset.index = swatchElements.length;
+          swatch.dataset.row = row;
+          swatch.dataset.col = col;
+          swatchGrid.appendChild(swatch);
+          swatchElements.push(swatch);
+
+          swatch.addEventListener("click", () => {
+            const rgb = window.getComputedStyle(swatch).backgroundColor;
+
+            colorEditor.style.display = "inline-block";
+            colorEditor.style.opacity = 1;
+            colorEditor.style.pointerEvents = "auto";
+            colorEditor.jscolor.fromString(rgb);
+            colorEditor.dataset.targetIndex = swatch.dataset.index;
+
+            // Set selected row and column
+            selectedRow = parseInt(swatch.dataset.row);
+            selectedCol = parseInt(swatch.dataset.col);
+
+            updateHighlight();
+          });
+        }
+      }
+
+      function updateHighlight() {
+        swatchElements.forEach(swatch => {
+          const row = parseInt(swatch.dataset.row);
+          const col = parseInt(swatch.dataset.col);
+          swatch.classList.remove("selected-row", "selected-col");
+
+          if (row === selectedRow) swatch.classList.add("selected-row");
+          if (col === selectedCol) swatch.classList.add("selected-col");
+        });
+      }
+
+      //?
+      colorEditor.addEventListener("change", () => {
+        const index = colorEditor.dataset.targetIndex;
+        const newColor = "#" + colorEditor.value;
+        swatchElements[index].style.backgroundColor = newColor;
+      });
+      //endSwatches
+
+      //start Sir Swatches Canvas Isopod
+      function getSwatchColorsForRow(rowIndex) {
+        const swatchesPerRow = 9;
+        const start = rowIndex * swatchesPerRow;
+        const rowSwatches = swatchElements.slice(start, start + swatchesPerRow);
+        return rowSwatches.map(el => getComputedStyle(el).backgroundColor);
+      }
+
+      const pixelMap = [
+        [null, null, null, null, 4, 4, 4, null, null, null, null, null, null],
+        [null, null, 5, 4, 4, 3, 3, 3, null, null, null, null, null],
+        [null, 5, 4, 4, 3, 3, 2, 2, 3, null, null, null, null],
+        [6, 5, 4, 3, 3, 2, 2, 2, 2, 2, null, null, null],
+        [6, 5, 4, 3, 2, 2, 1, 1, 2, 2, 2, null, null],
+        [6, 6, 5, 2, 2, 1, 1, 1, 1, 1, 2, null, null],
+        [7, 6, 5, 2, 1, 1, 0, 0, 1, 1, 1, null, null],
+        [7, 7, 6, 5, 1, 0, 0, 0, 0, 1, null, null, null],
+        [null, 8, 7, 7, 0, 10, 0, 0, 10, 0, null, null, null],
+        [null, null, 8, 10, 8, 0, 0, 0, 0, null, null, 10, null],
+        [null, null, 10, null, null, 10, 10, null, 10, 10, null, null, 10],
+        [null, null, null, 10, 10, null, null, null, null, null, 10, 10, null]
+      ];
+      function drawPixelMap(pixelMap, selectedRowIndex) {
+        const canvas = document.getElementById("sirSwatchesCanvas");
+        const ctx = canvas.getContext("2d");
+        const pixelSize = 1;
+
+        const swatchRow = getSwatchColorsForRow(selectedRowIndex);
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (let y = 0; y < pixelMap.length; y++) {
+          for (let x = 0; x < pixelMap[y].length; x++) {
+            const val = pixelMap[y][x];
+
+            if (val === null) continue; // transparent
+
+            let color = null;
+            if (val >= 0 && val <= 8) {
+              color = swatchRow[val]; 
+            } else if (val === 10) {
+              color = '#000000'; // 10=black
+            }
+
+            if (color) {
+              ctx.fillStyle = color;
+              ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+            }
+          }
+        }
+      }
+      drawPixelMap(pixelMap, 2);
+      
+      function shuffle(array) {
+        let currentIndex = array.length;
+
+        while (currentIndex != 0) {
+          let randomIndex = Math.floor(Math.random() * currentIndex);
+          currentIndex--;
+
+          [array[currentIndex], array[randomIndex]] = [
+            array[randomIndex], array[currentIndex]];
+        }
+      }
+      function randomizePixelColors() {
+        let shuffleArr = [0,1,2,3,4,5,6,7,8];
+        shuffle(shuffleArr);
+        
+        const remapped = [];
+
+        for (let y = 0; y < pixelMap.length; y++) {
+          const row = [];
+          for (let x = 0; x < pixelMap[y].length; x++) {
+            const val = pixelMap[y][x];
+            if (val === null) {
+              row.push(null);
+            }
+            else if (val === 10){
+              row.push(10);
+            }
+            else {
+              row.push(shuffleArr[val]);
+            }
+          }
+          remapped.push(row);
+        }
+        drawPixelMap(remapped, 2);
+      }
+      //END Sir Swatches Canvas Isopod
+
+      //switch between color and text input box
+      function showTextBox() { //from text vs from color
+        document.getElementById("textInput").classList.remove("hidden");
+        document.getElementById("colorInput").classList.add("hidden");
+      }
+      function showColorBox() { //from color vs from text
+        document.getElementById("colorInput").classList.remove("hidden");
+        document.getElementById("textInput").classList.add("hidden");
+      }
+
+      //fill the in/out jscolor boxes
+      function fillBox(thisBtnId, color) {
+        color = color.toUpperCase();
+        let box = document.getElementById("colorInput");
+        if(thisBtnId.includes("input")){
+          box.value = color;
+          box.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+        if(thisBtnId.includes("output")){
+          box = document.getElementById("colorOutput")
+          box.value = color;
+          box.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+
+      }
+
+      function pickColor(thisBtn) {    //getColorFromSelection
+        showColorBox();
+        google.script.run
+          .withSuccessHandler(function(color) {
+            if (color) {
+              fillBox(thisBtn.id, color);
+            }
+          })
+        .getColorFromSelection(thisBtn.id);
+      }
+
+      function highlight(thisBtn) {    //highlightBtn click
+        const colorInput = document.getElementById("colorInput").value;
+        const colorStyle = window.getComputedStyle(document.getElementById("colorInput"));
+
+        const textInput = document.getElementById("textInput").value;
+        const colorOutput = document.getElementById("colorOutput").value;
+
+        if (colorStyle.display !== "none") {
+          google.script.run.swapColors(colorInput, colorOutput, thisBtn.id);
+        }
+        else {
+          google.script.run.colorTerm(textInput, colorOutput, thisBtn.id);
+        }
+      }
+      function colorize(thisBtn) {    //colorizeBtn click
+        const colorInput = document.getElementById("colorInput").value;
+        const colorStyle = window.getComputedStyle(document.getElementById("colorInput"));
+
+        const textInput = document.getElementById("textInput").value;
+        const colorOutput = document.getElementById("colorOutput").value;
+
+        if (colorStyle.display !== "none") {
+          google.script.run.swapColors(colorInput, colorOutput, thisBtn.id);
+        }
+        else {
+          google.script.run.colorTerm(textInput, colorOutput, thisBtn.id);
+        }
+      }
+
+      //START Dynamic Picker Button color
+      let intervalId = null;
+      function colorButtons(btn, color) {
+        btn.style.backgroundColor = color;
+      }
+      function updateColor() {
+        google.script.run.withSuccessHandler(
+          function(color) {
+            if (!color) {
+              color = "light-gray";
+            }
+            colorButtons(document.getElementById("outputHighlightPickerBtn"), color);
+            colorButtons(document.getElementById("inputHighlightPickerBtn"), color);
+          }
+        ).getColorFromSelection("highlightBtn");
+        google.script.run.withSuccessHandler(
+          function(color) {
+              if (!color) {
+                color = "light-gray";
+              }
+              colorButtons(document.getElementById("outputColorPickerBtn"), color);
+              colorButtons(document.getElementById("inputColorPickerBtn"), color);
+            }
+          ).getColorFromSelection("colorBtn");
+        
+      }
+      function startPolling() {
+        if (!intervalId) {
+          updateColor();
+          intervalId = setInterval(updateColor, 2000);
+        }
+      }
+      function stopPolling() {
+        if (intervalId) {
+          clearInterval(intervalId);
+          intervalId = null;
+        }
+      }
+      document.addEventListener("visibilitychange", function () {   //stop polling if doc not active
+        if (document.visibilityState === "visible") {
+          startPolling();
+        } else {
+          stopPolling();
+        }
+      });
+      if (document.visibilityState === "visible") { 
+        startPolling(); //kicker
+      }
+      //END Dynamic Picker Button color
+    </script>
+  </body>
+</html>
